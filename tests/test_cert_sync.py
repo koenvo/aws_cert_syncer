@@ -252,7 +252,9 @@ class TestCertificateRetriever:
     def test_init(self, mock_boto3_client):
         retriever = CertificateRetriever("us-east-1")
         mock_boto3_client.assert_called_once_with("acm", region_name="us-east-1")
-        assert retriever.temp_passphrase == "temp-export-pass-123"
+        # Passphrase should be 16 characters long and alphanumeric
+        assert len(retriever.temp_passphrase) == 16
+        assert retriever.temp_passphrase.isalnum()
 
     @patch("boto3.client")
     def test_find_certificate_by_arn_success(self, mock_boto3_client):
@@ -464,9 +466,11 @@ class TestCertificateRetriever:
 
         assert result is not None
         assert isinstance(result, Certificate)
-        mock_acm.export_certificate.assert_called_once_with(
-            CertificateArn=arn, Passphrase=b"temp-export-pass-123"
-        )
+        # Verify export was called with the right ARN and a bytes passphrase
+        call_args = mock_acm.export_certificate.call_args
+        assert call_args[1]["CertificateArn"] == arn
+        assert isinstance(call_args[1]["Passphrase"], bytes)
+        assert len(call_args[1]["Passphrase"]) == 16
 
 
 class TestCertSyncManager:

@@ -498,8 +498,8 @@ class CertSyncManager:
     def _execute_command(self, command: str, cert_name: str) -> bool:
         """Execute reload command after certificate update"""
         try:
-            import subprocess  # nosec B404 - subprocess needed for reload commands
             import shlex
+            import subprocess  # nosec B404 - subprocess needed for reload commands
 
             logging.info(f"Executing reload command for {cert_name}: {command}")
 
