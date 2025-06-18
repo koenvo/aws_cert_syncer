@@ -756,71 +756,73 @@ class TestIntegration:
     ):
         """Test complete sync flow from config to nginx files"""
 
-        # Setup config
-        config = {
-            "aws": {"region": "us-east-1"},
-            "certificates": [
-                {
-                    "name": "example-com",
-                    "arn": "arn:aws:acm:us-east-1:123456789012:certificate/test",
-                    "targets": [
-                        {
-                            "base_dir": "/etc/ssl",
-                            "server_type": "nginx",
-                            "passphrase": "",
-                            "reload_command": "systemctl reload nginx",
-                        }
-                    ],
-                }
-            ],
-        }
+        # Setup config with temporary directory
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = {
+                "aws": {"region": "us-east-1"},
+                "certificates": [
+                    {
+                        "name": "example-com",
+                        "arn": "arn:aws:acm:us-east-1:123456789012:certificate/test",
+                        "targets": [
+                            {
+                                "base_dir": temp_dir,
+                                "server_type": "nginx",
+                                "passphrase": "",
+                                "reload_command": "echo 'nginx reloaded'",
+                            }
+                        ],
+                    }
+                ],
+            }
 
-        # Mock boto3 ACM client
-        mock_acm = MagicMock()
-        mock_boto3_client.return_value = mock_acm
-        mock_acm.describe_certificate.return_value = {}
-        mock_acm.export_certificate.return_value = {
-            "Certificate": "-----BEGIN CERTIFICATE-----\ntest-cert\n-----END CERTIFICATE-----",
-            "PrivateKey": "-----BEGIN ENCRYPTED PRIVATE KEY-----\ntest-key\n-----END ENCRYPTED PRIVATE KEY-----",
-            "CertificateChain": "-----BEGIN CERTIFICATE-----\ntest-chain\n-----END CERTIFICATE-----",
-        }
+            # Mock boto3 ACM client
+            mock_acm = MagicMock()
+            mock_boto3_client.return_value = mock_acm
+            mock_acm.describe_certificate.return_value = {}
+            mock_acm.export_certificate.return_value = {
+                "Certificate": "-----BEGIN CERTIFICATE-----\ntest-cert\n-----END CERTIFICATE-----",
+                "PrivateKey": "-----BEGIN ENCRYPTED PRIVATE KEY-----\ntest-key\n-----END ENCRYPTED PRIVATE KEY-----",
+                "CertificateChain": "-----BEGIN CERTIFICATE-----\ntest-chain\n-----END CERTIFICATE-----",
+            }
 
-        # Mock private key decryption
-        mock_private_key = MagicMock()
-        mock_serialization.load_pem_private_key.return_value = mock_private_key
-        mock_private_key.private_bytes.return_value = (
-            b"-----BEGIN PRIVATE KEY-----\nunencrypted-key\n-----END PRIVATE KEY-----"
-        )
+            # Mock private key decryption
+            mock_private_key = MagicMock()
+            mock_serialization.load_pem_private_key.return_value = mock_private_key
+            mock_private_key.private_bytes.return_value = (
+                b"-----BEGIN PRIVATE KEY-----\nunencrypted-key\n-----END PRIVATE KEY-----"
+            )
 
-        # Mock subprocess for reload command
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_subprocess.return_value = mock_result
+            # Mock subprocess for reload command
+            mock_result = MagicMock()
+            mock_result.returncode = 0
+            mock_subprocess.return_value = mock_result
 
-        # Mock file system operations
-        with patch(
-            "os.path.exists", return_value=False
-        ):  # Certificate doesn't exist yet
-            with patch("yaml.safe_load", return_value=config):
-                with patch("pathlib.Path.mkdir"):  # Mock directory creation
-                    manager = CertSyncManager("/config/test.yaml")
-                    result = manager.sync_all_certificates()
+            # Mock file system operations
+            with patch(
+                "os.path.exists", return_value=False
+            ):  # Certificate doesn't exist yet
+                with patch("yaml.safe_load", return_value=config):
+                    with patch("pathlib.Path.mkdir"):  # Mock directory creation
+                        manager = CertSyncManager("/config/test.yaml")
+                        result = manager.sync_all_certificates()
 
-        # Verify success
-        assert result is True
+            # Verify success
+            assert result is True
 
-        # Verify ACM calls
-        mock_acm.describe_certificate.assert_called_once()
-        mock_acm.export_certificate.assert_called_once()
+            # Verify ACM calls
+            mock_acm.describe_certificate.assert_called_once()
+            mock_acm.export_certificate.assert_called_once()
 
-        # Verify file writes (cert, key, chain)
-        assert mock_file.call_count >= 3
+            # Verify file writes (cert, key, chain)
+            assert mock_file.call_count >= 3
 
-        # Verify reload command
-        mock_subprocess.assert_called_once()
+            # Verify reload command
+            mock_subprocess.assert_called_once()
 
-        # Verify permissions
-        assert mock_chmod.call_count >= 3
+            # Verify permissions
+            assert mock_chmod.call_count >= 3
 
     @patch("boto3.client")
     @patch("cert_sync.serialization")
@@ -841,76 +843,78 @@ class TestIntegration:
     ):
         """Test certificate refresh when existing certificate is expiring"""
 
-        # Setup config
-        config = {
-            "aws": {"region": "us-east-1"},
-            "certificates": [
-                {
-                    "name": "expiring-cert",
-                    "arn": "arn:aws:acm:us-east-1:123456789012:certificate/test",
-                    "targets": [
-                        {
-                            "base_dir": "/etc/ssl",
-                            "server_type": "nginx",
-                            "passphrase": "",
-                            "reload_command": "systemctl reload nginx",
-                        }
-                    ],
-                }
-            ],
-        }
+        # Setup config with temporary directory
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = {
+                "aws": {"region": "us-east-1"},
+                "certificates": [
+                    {
+                        "name": "expiring-cert",
+                        "arn": "arn:aws:acm:us-east-1:123456789012:certificate/test",
+                        "targets": [
+                            {
+                                "base_dir": temp_dir,
+                                "server_type": "nginx",
+                                "passphrase": "",
+                                "reload_command": "echo 'nginx reloaded'",
+                            }
+                        ],
+                    }
+                ],
+            }
 
-        # Mock existing expiring certificate on disk (expires in 15 days)
-        expiring_cert_pem = self.create_test_certificate_pem(days_until_expiry=15)
+            # Mock existing expiring certificate on disk (expires in 15 days)
+            expiring_cert_pem = self.create_test_certificate_pem(days_until_expiry=15)
 
-        # Mock file system - certificate exists but is expiring
-        mock_exists.return_value = True
-        mock_file.return_value.read.return_value = expiring_cert_pem
+            # Mock file system - certificate exists but is expiring
+            mock_exists.return_value = True
+            mock_file.return_value.read.return_value = expiring_cert_pem
 
-        # Mock boto3 ACM client
-        mock_acm = MagicMock()
-        mock_boto3_client.return_value = mock_acm
-        mock_acm.describe_certificate.return_value = {}
+            # Mock boto3 ACM client
+            mock_acm = MagicMock()
+            mock_boto3_client.return_value = mock_acm
+            mock_acm.describe_certificate.return_value = {}
 
-        # Mock ACM returning new certificate
-        new_cert_pem = self.create_test_certificate_pem(days_until_expiry=90)
-        mock_acm.export_certificate.return_value = {
-            "Certificate": new_cert_pem,
-            "PrivateKey": "-----BEGIN ENCRYPTED PRIVATE KEY-----\ntest-key\n-----END ENCRYPTED PRIVATE KEY-----",
-            "CertificateChain": "-----BEGIN CERTIFICATE-----\ntest-chain\n-----END CERTIFICATE-----",
-        }
+            # Mock ACM returning new certificate
+            new_cert_pem = self.create_test_certificate_pem(days_until_expiry=90)
+            mock_acm.export_certificate.return_value = {
+                "Certificate": new_cert_pem,
+                "PrivateKey": "-----BEGIN ENCRYPTED PRIVATE KEY-----\ntest-key\n-----END ENCRYPTED PRIVATE KEY-----",
+                "CertificateChain": "-----BEGIN CERTIFICATE-----\ntest-chain\n-----END CERTIFICATE-----",
+            }
 
-        # Mock private key decryption
-        mock_private_key = MagicMock()
-        mock_serialization.load_pem_private_key.return_value = mock_private_key
-        mock_private_key.private_bytes.return_value = (
-            b"-----BEGIN PRIVATE KEY-----\nunencrypted-key\n-----END PRIVATE KEY-----"
-        )
+            # Mock private key decryption
+            mock_private_key = MagicMock()
+            mock_serialization.load_pem_private_key.return_value = mock_private_key
+            mock_private_key.private_bytes.return_value = (
+                b"-----BEGIN PRIVATE KEY-----\nunencrypted-key\n-----END PRIVATE KEY-----"
+            )
 
-        # Mock subprocess for reload command
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_subprocess.return_value = mock_result
+            # Mock subprocess for reload command
+            mock_result = MagicMock()
+            mock_result.returncode = 0
+            mock_subprocess.return_value = mock_result
 
-        # Mock environment variable for expiry threshold
-        with patch.dict(os.environ, {"DAYS_BEFORE_EXPIRY": "30"}):
-            with patch("yaml.safe_load", return_value=config):
-                with patch("pathlib.Path.mkdir"):  # Mock directory creation
-                    manager = CertSyncManager("/config/test.yaml")
-                    result = manager.sync_all_certificates()
+            # Mock environment variable for expiry threshold
+            with patch.dict(os.environ, {"DAYS_BEFORE_EXPIRY": "30"}):
+                with patch("yaml.safe_load", return_value=config):
+                    with patch("pathlib.Path.mkdir"):  # Mock directory creation
+                        manager = CertSyncManager("/config/test.yaml")
+                        result = manager.sync_all_certificates()
 
-        # Verify success - certificate should be refreshed
-        assert result is True
+            # Verify success - certificate should be refreshed
+            assert result is True
 
-        # Verify ACM was called to get new certificate
-        mock_acm.describe_certificate.assert_called_once()
-        mock_acm.export_certificate.assert_called_once()
+            # Verify ACM was called to get new certificate
+            mock_acm.describe_certificate.assert_called_once()
+            mock_acm.export_certificate.assert_called_once()
 
-        # Verify files were written (because certificate was expiring)
-        assert mock_file.call_count >= 3  # Read existing + write new cert, key, chain
+            # Verify files were written (because certificate was expiring)
+            assert mock_file.call_count >= 3  # Read existing + write new cert, key, chain
 
-        # Verify reload command was executed
-        mock_subprocess.assert_called_once()
+            # Verify reload command was executed
+            mock_subprocess.assert_called_once()
 
     @patch("boto3.client")
     @patch("os.path.exists")
