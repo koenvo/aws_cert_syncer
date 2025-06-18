@@ -760,16 +760,17 @@ class TestIntegration:
             ],
         }
 
-        with patch("yaml.safe_load", return_value=config), \
-             patch("os.path.exists", return_value=False), \
-             patch("subprocess.run") as mock_subprocess, \
-             patch("builtins.open", mock_open()) as mock_file, \
-             patch("cert_sync.serialization") as mock_serialization, \
-             patch("boto3.client") as mock_boto3_client, \
-             patch("os.chmod") as mock_os_chmod, \
-             patch("pathlib.Path.chmod"), \
-             patch("pathlib.Path.mkdir"):
-
+        with (
+            patch("yaml.safe_load", return_value=config),
+            patch("os.path.exists", return_value=False),
+            patch("subprocess.run") as mock_subprocess,
+            patch("builtins.open", mock_open()) as mock_file,
+            patch("cert_sync.serialization") as mock_serialization,
+            patch("boto3.client") as mock_boto3_client,
+            patch("os.chmod") as mock_os_chmod,
+            patch("pathlib.Path.chmod"),
+            patch("pathlib.Path.mkdir"),
+        ):
             # Mock boto3 ACM client
             mock_acm = MagicMock()
             mock_boto3_client.return_value = mock_acm
@@ -783,9 +784,7 @@ class TestIntegration:
             # Mock private key decryption
             mock_private_key = MagicMock()
             mock_serialization.load_pem_private_key.return_value = mock_private_key
-            mock_private_key.private_bytes.return_value = (
-                b"-----BEGIN PRIVATE KEY-----\nunencrypted-key\n-----END PRIVATE KEY-----"
-            )
+            mock_private_key.private_bytes.return_value = b"-----BEGIN PRIVATE KEY-----\nunencrypted-key\n-----END PRIVATE KEY-----"
 
             # Mock subprocess for reload command
             mock_result = MagicMock()
@@ -836,17 +835,18 @@ class TestIntegration:
         # Mock existing expiring certificate on disk (expires in 15 days)
         expiring_cert_pem = self.create_test_certificate_pem(days_until_expiry=15)
 
-        with patch("yaml.safe_load", return_value=config), \
-             patch("os.path.exists", return_value=True), \
-             patch("subprocess.run") as mock_subprocess, \
-             patch("builtins.open", mock_open(read_data=expiring_cert_pem)) as mock_file, \
-             patch("cert_sync.serialization") as mock_serialization, \
-             patch("boto3.client") as mock_boto3_client, \
-             patch("os.chmod"), \
-             patch("pathlib.Path.chmod"), \
-             patch("pathlib.Path.mkdir"), \
-             patch.dict(os.environ, {"DAYS_BEFORE_EXPIRY": "30"}):
-
+        with (
+            patch("yaml.safe_load", return_value=config),
+            patch("os.path.exists", return_value=True),
+            patch("subprocess.run") as mock_subprocess,
+            patch("builtins.open", mock_open(read_data=expiring_cert_pem)) as mock_file,
+            patch("cert_sync.serialization") as mock_serialization,
+            patch("boto3.client") as mock_boto3_client,
+            patch("os.chmod"),
+            patch("pathlib.Path.chmod"),
+            patch("pathlib.Path.mkdir"),
+            patch.dict(os.environ, {"DAYS_BEFORE_EXPIRY": "30"}),
+        ):
             # Mock boto3 ACM client
             mock_acm = MagicMock()
             mock_boto3_client.return_value = mock_acm
@@ -863,9 +863,7 @@ class TestIntegration:
             # Mock private key decryption
             mock_private_key = MagicMock()
             mock_serialization.load_pem_private_key.return_value = mock_private_key
-            mock_private_key.private_bytes.return_value = (
-                b"-----BEGIN PRIVATE KEY-----\nunencrypted-key\n-----END PRIVATE KEY-----"
-            )
+            mock_private_key.private_bytes.return_value = b"-----BEGIN PRIVATE KEY-----\nunencrypted-key\n-----END PRIVATE KEY-----"
 
             # Mock subprocess for reload command
             mock_result = MagicMock()
@@ -884,7 +882,9 @@ class TestIntegration:
             mock_acm.export_certificate.assert_called_once()
 
             # Verify files were written (because certificate was expiring)
-            assert mock_file.call_count >= 3  # Read existing + write new cert, key, chain
+            assert (
+                mock_file.call_count >= 3
+            )  # Read existing + write new cert, key, chain
 
             # Verify reload command was executed
             mock_subprocess.assert_called_once()
