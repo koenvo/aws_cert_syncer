@@ -16,20 +16,24 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        enable-cache: true
-
     - name: Set up Python ${{ matrix.python-version }}
-      run: uv python install ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
 
     - name: Install dependencies
-      run: uv sync --all-extras --dev
+      run: poetry install
 
     - name: Run tests with pytest
       run: |
-        uv run pytest --cov=cert_sync --cov-report=xml --cov-report=term-missing -v
+        poetry run pytest --cov=cert_sync --cov-report=xml --cov-report=term-missing -v
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -41,11 +45,11 @@ jobs:
 
     - name: Test CLI help
       run: |
-        uv run python cert_sync.py --help
+        poetry run python cert_sync.py --help
 
     - name: Test CLI with invalid config (should fail gracefully)
       run: |
-        uv run python cert_sync.py --config /nonexistent/config.yaml || echo "Expected failure - config not found"
+        poetry run python cert_sync.py --config /nonexistent/config.yaml || echo "Expected failure - config not found"
 
     - name: Test CLI dry-run with example config
       run: |
@@ -64,56 +68,64 @@ jobs:
         EOF
         
         # Test dry-run (should work without AWS credentials)
-        uv run python cert_sync.py --config /tmp/test-config/config.yaml --dry-run || echo "Dry-run test completed"
+        poetry run python cert_sync.py --config /tmp/test-config/config.yaml --dry-run || echo "Dry-run test completed"
 
   lint:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        enable-cache: true
-
     - name: Set up Python
-      run: uv python install 3.9
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
 
     - name: Install dependencies
-      run: uv sync --all-extras --dev
+      run: poetry install
 
     - name: Check code formatting with ruff
       run: |
-        uv run ruff format --check --diff .
+        poetry run ruff format --check --diff .
 
     - name: Lint with ruff
       run: |
-        uv run ruff check .
+        poetry run ruff check .
 
   security:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        enable-cache: true
-
     - name: Set up Python
-      run: uv python install 3.9
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
 
     - name: Install dependencies
-      run: uv sync --all-extras --dev
+      run: poetry install
 
     - name: Run security scan with bandit
       run: |
-        uv run pip install bandit
-        uv run bandit -r cert_sync.py -f json -o bandit-report.json || true
-        uv run bandit -r cert_sync.py
+        poetry run pip install bandit
+        poetry run bandit -r cert_sync.py -f json -o bandit-report.json || true
+        poetry run bandit -r cert_sync.py
 
     - name: Upload security scan results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: bandit-report
