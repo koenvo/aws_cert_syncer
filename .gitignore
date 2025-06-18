@@ -161,3 +161,4 @@ bandit-report.json
 # Temporary test files
 /tmp/
 temp/
+scratchpad/
