@@ -739,43 +739,36 @@ class TestIntegration:
         # Return PEM
         return cert.public_bytes(serialization.Encoding.PEM).decode()
 
-    @patch("boto3.client")
-    @patch("cert_sync.serialization")
-    @patch("os.makedirs")
-    @patch("os.chmod")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("subprocess.run")
-    def test_full_sync_flow_nginx(
-        self,
-        mock_subprocess,
-        mock_file,
-        mock_chmod,
-        mock_makedirs,
-        mock_serialization,
-        mock_boto3_client,
-    ):
+    def test_full_sync_flow_nginx(self):
         """Test complete sync flow from config to nginx files"""
 
-        # Setup config with temporary directory
-        import tempfile
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config = {
-                "aws": {"region": "us-east-1"},
-                "certificates": [
-                    {
-                        "name": "example-com",
-                        "arn": "arn:aws:acm:us-east-1:123456789012:certificate/test",
-                        "targets": [
-                            {
-                                "base_dir": temp_dir,
-                                "server_type": "nginx",
-                                "passphrase": "",
-                                "reload_command": "echo 'nginx reloaded'",
-                            }
-                        ],
-                    }
-                ],
-            }
+        config = {
+            "aws": {"region": "us-east-1"},
+            "certificates": [
+                {
+                    "name": "example-com",
+                    "arn": "arn:aws:acm:us-east-1:123456789012:certificate/test",
+                    "targets": [
+                        {
+                            "base_dir": "/tmp/ssl",
+                            "server_type": "nginx",
+                            "passphrase": "",
+                            "reload_command": "echo 'nginx reloaded'",
+                        }
+                    ],
+                }
+            ],
+        }
+
+        with patch("yaml.safe_load", return_value=config), \
+             patch("os.path.exists", return_value=False), \
+             patch("subprocess.run") as mock_subprocess, \
+             patch("builtins.open", mock_open()) as mock_file, \
+             patch("cert_sync.serialization") as mock_serialization, \
+             patch("boto3.client") as mock_boto3_client, \
+             patch("os.chmod") as mock_os_chmod, \
+             patch("pathlib.Path.chmod"), \
+             patch("pathlib.Path.mkdir"):
 
             # Mock boto3 ACM client
             mock_acm = MagicMock()
@@ -799,14 +792,9 @@ class TestIntegration:
             mock_result.returncode = 0
             mock_subprocess.return_value = mock_result
 
-            # Mock file system operations
-            with patch(
-                "os.path.exists", return_value=False
-            ):  # Certificate doesn't exist yet
-                with patch("yaml.safe_load", return_value=config):
-                    with patch("pathlib.Path.mkdir"):  # Mock directory creation
-                        manager = CertSyncManager("/config/test.yaml")
-                        result = manager.sync_all_certificates()
+            # Run the sync
+            manager = CertSyncManager("/config/test.yaml")
+            result = manager.sync_all_certificates()
 
             # Verify success
             assert result is True
@@ -821,55 +809,43 @@ class TestIntegration:
             # Verify reload command
             mock_subprocess.assert_called_once()
 
-            # Verify permissions
-            assert mock_chmod.call_count >= 3
+            # Verify permissions were set
+            assert mock_os_chmod.call_count >= 3
 
-    @patch("boto3.client")
-    @patch("cert_sync.serialization")
-    @patch("os.makedirs")
-    @patch("os.chmod")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("subprocess.run")
-    @patch("os.path.exists")
-    def test_certificate_refresh_on_expiry(
-        self,
-        mock_exists,
-        mock_subprocess,
-        mock_file,
-        mock_chmod,
-        mock_makedirs,
-        mock_serialization,
-        mock_boto3_client,
-    ):
+    def test_certificate_refresh_on_expiry(self):
         """Test certificate refresh when existing certificate is expiring"""
 
-        # Setup config with temporary directory
-        import tempfile
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config = {
-                "aws": {"region": "us-east-1"},
-                "certificates": [
-                    {
-                        "name": "expiring-cert",
-                        "arn": "arn:aws:acm:us-east-1:123456789012:certificate/test",
-                        "targets": [
-                            {
-                                "base_dir": temp_dir,
-                                "server_type": "nginx",
-                                "passphrase": "",
-                                "reload_command": "echo 'nginx reloaded'",
-                            }
-                        ],
-                    }
-                ],
-            }
+        config = {
+            "aws": {"region": "us-east-1"},
+            "certificates": [
+                {
+                    "name": "expiring-cert",
+                    "arn": "arn:aws:acm:us-east-1:123456789012:certificate/test",
+                    "targets": [
+                        {
+                            "base_dir": "/tmp/ssl",
+                            "server_type": "nginx",
+                            "passphrase": "",
+                            "reload_command": "echo 'nginx reloaded'",
+                        }
+                    ],
+                }
+            ],
+        }
 
-            # Mock existing expiring certificate on disk (expires in 15 days)
-            expiring_cert_pem = self.create_test_certificate_pem(days_until_expiry=15)
+        # Mock existing expiring certificate on disk (expires in 15 days)
+        expiring_cert_pem = self.create_test_certificate_pem(days_until_expiry=15)
 
-            # Mock file system - certificate exists but is expiring
-            mock_exists.return_value = True
-            mock_file.return_value.read.return_value = expiring_cert_pem
+        with patch("yaml.safe_load", return_value=config), \
+             patch("os.path.exists", return_value=True), \
+             patch("subprocess.run") as mock_subprocess, \
+             patch("builtins.open", mock_open(read_data=expiring_cert_pem)) as mock_file, \
+             patch("cert_sync.serialization") as mock_serialization, \
+             patch("boto3.client") as mock_boto3_client, \
+             patch("os.chmod"), \
+             patch("pathlib.Path.chmod"), \
+             patch("pathlib.Path.mkdir"), \
+             patch.dict(os.environ, {"DAYS_BEFORE_EXPIRY": "30"}):
 
             # Mock boto3 ACM client
             mock_acm = MagicMock()
@@ -896,12 +872,9 @@ class TestIntegration:
             mock_result.returncode = 0
             mock_subprocess.return_value = mock_result
 
-            # Mock environment variable for expiry threshold
-            with patch.dict(os.environ, {"DAYS_BEFORE_EXPIRY": "30"}):
-                with patch("yaml.safe_load", return_value=config):
-                    with patch("pathlib.Path.mkdir"):  # Mock directory creation
-                        manager = CertSyncManager("/config/test.yaml")
-                        result = manager.sync_all_certificates()
+            # Run the sync
+            manager = CertSyncManager("/config/test.yaml")
+            result = manager.sync_all_certificates()
 
             # Verify success - certificate should be refreshed
             assert result is True
