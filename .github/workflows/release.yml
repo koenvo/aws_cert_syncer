@@ -1,0 +1,113 @@
+name: Release
+
+# Most parts are borrowed from https://github.com/pola-rs/polars/blob/main/.github/workflows/release-python.yml
+
+on:
+  workflow_dispatch:
+    inputs:
+      # Latest commit to include with the release. If omitted, use the latest commit on the main branch.
+      sha:
+        description: Commit SHA
+        type: string
+      # Create the sdist and build the wheels, but do not publish to PyPI / GitHub.
+      dry-run:
+        description: Dry run
+        type: boolean
+        default: false
+env:
+  PYTHON_VERSION: '3.9'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  create-sdist:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Create source distribution
+        run: poetry build --format=sdist
+
+      - name: Test sdist
+        run: |
+          pip install --force-reinstall --verbose dist/*.tar.gz
+          python -c 'import cert_sync'
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist-aws_cert_syncer
+          path: dist/*.tar.gz
+
+  build-wheel:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Build wheel
+        run: poetry build --format=wheel
+
+      - name: Test wheel
+        run: |
+          pip install --force-reinstall --verbose dist/*.whl
+          python -c 'import cert_sync'
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-aws_cert_syncer
+          path: dist/*.whl
+
+  publish-to-pypi:
+    needs: [create-sdist, build-wheel]
+    environment:
+      name: release-python
+      url: https://pypi.org/project/aws_cert_syncer
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download sdists and wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        if: inputs.dry-run == false
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true

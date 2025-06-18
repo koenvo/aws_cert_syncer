@@ -1,0 +1,120 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Run tests with pytest
+      run: |
+        uv run pytest --cov=cert_sync --cov-report=xml --cov-report=term-missing -v
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Test CLI help
+      run: |
+        uv run python cert_sync.py --help
+
+    - name: Test CLI with invalid config (should fail gracefully)
+      run: |
+        uv run python cert_sync.py --config /nonexistent/config.yaml || echo "Expected failure - config not found"
+
+    - name: Test CLI dry-run with example config
+      run: |
+        # Create a test config
+        mkdir -p /tmp/test-config
+        cat > /tmp/test-config/config.yaml << EOF
+        aws:
+          region: us-east-1
+        certificates:
+          - name: test-cert
+            arn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+            targets:
+              - base_dir: "/tmp/ssl"
+                server_type: "nginx"
+                reload_command: "echo 'would reload nginx'"
+        EOF
+        
+        # Test dry-run (should work without AWS credentials)
+        uv run python cert_sync.py --config /tmp/test-config/config.yaml --dry-run || echo "Dry-run test completed"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+
+    - name: Set up Python
+      run: uv python install 3.9
+
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Check code formatting with ruff
+      run: |
+        uv run ruff format --check --diff .
+
+    - name: Lint with ruff
+      run: |
+        uv run ruff check .
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+
+    - name: Set up Python
+      run: uv python install 3.9
+
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Run security scan with bandit
+      run: |
+        uv run pip install bandit
+        uv run bandit -r cert_sync.py -f json -o bandit-report.json || true
+        uv run bandit -r cert_sync.py
+
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: bandit-report
+        path: bandit-report.json

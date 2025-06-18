@@ -1,20 +1,102 @@
 [tool.poetry]
-name = "aws-cert-syncer"
+name = "aws_cert_syncer"
 version = "0.1.0"
-description = ""
+description = "A robust tool to sync AWS ACM certificates to local files for web servers (nginx, apache, haproxy, etc.)"
 authors = ["Koen Vossen <info@koenvossen.nl>"]
 readme = "README.md"
+homepage = "https://github.com/koenvo/aws_cert_syncer"
+repository = "https://github.com/koenvo/aws_cert_syncer"
+documentation = "https://github.com/koenvo/aws_cert_syncer#readme"
+keywords = ["aws", "acm", "ssl", "certificates", "nginx", "apache", "haproxy", "docker", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Security :: Cryptography",
+    "Topic :: System :: Networking",
+]
+packages = [{include = "cert_sync.py"}]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.9"
 boto3 = "^1.38.38"
 pyyaml = "^6.0"
 cryptography = "^41.0.0"
 schedule = "^1.2.0"
 
 
+[tool.poetry.scripts]
+aws_cert_syncer = "cert_sync:main"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"
+pytest-cov = "^4.0.0"
+ruff = "^0.8.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [build-system]
 requires = ["poetry-core"]
