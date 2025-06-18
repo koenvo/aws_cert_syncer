@@ -321,9 +321,12 @@ class CertificateRetriever:
 
     def __init__(self, region: str):
         self.acm_client = boto3.client("acm", region_name=region)
-        self.temp_passphrase = (
-            "temp-export-pass-123"  # Temporary passphrase for ACM export
-        )
+        # Generate a random temporary passphrase for ACM export
+        import secrets
+        import string
+
+        alphabet = string.ascii_letters + string.digits
+        self.temp_passphrase = "".join(secrets.choice(alphabet) for _ in range(16))
 
     def find_certificate_by_arn(self, arn: str) -> str | None:
         """Find certificate by ARN"""
@@ -495,12 +498,14 @@ class CertSyncManager:
     def _execute_command(self, command: str, cert_name: str) -> bool:
         """Execute reload command after certificate update"""
         try:
-            import subprocess
+            import subprocess  # nosec B404 - subprocess needed for reload commands
+            import shlex
 
             logging.info(f"Executing reload command for {cert_name}: {command}")
 
-            result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, timeout=30
+            # Parse command safely to avoid shell injection
+            result = subprocess.run(  # nosec B603 - command is user-configured and parsed with shlex for safety
+                shlex.split(command), capture_output=True, text=True, timeout=30
             )
 
             if result.returncode == 0:
