@@ -2,6 +2,21 @@
 
 A robust tool to sync AWS ACM certificates to local files for web servers (nginx, apache, haproxy, etc.). Designed for containerized environments and automation workflows.
 
+> **⚡ Now Possible with ACM Export Feature**  
+> As of [June 2025](https://aws.amazon.com/about-aws/whats-new/2025/06/aws-certificate-manager-public-certificates-use-anywhere/), AWS Certificate Manager allows exporting public certificates for use anywhere, making it possible to sync ACM-managed certificates to your own infrastructure while maintaining centralized certificate management and automatic renewals.
+
+## Why This Tool?
+
+While AWS ACM provides excellent certificate management within AWS services (ALB, CloudFront, etc.), many scenarios require certificates on your own servers:
+
+- **Hybrid deployments**: On-premises servers that need AWS-managed certificates
+- **Custom applications**: Services running on EC2 that don't integrate directly with ACM
+- **Multi-cloud setups**: Consistent certificate management across cloud providers
+- **Legacy systems**: Existing infrastructure that needs modern certificate automation
+- **Development environments**: Local testing with production-like certificates
+
+This tool bridges that gap by automatically exporting ACM certificates and deploying them to your servers with proper formatting for different web servers.
+
 ## Features
 
 - **🔍 Multiple certificate sources**: Find certificates by ARN or AWS tags
