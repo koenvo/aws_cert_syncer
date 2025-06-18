@@ -1,0 +1,35 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock ./
+
+# Install poetry and dependencies
+RUN pip install poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --no-dev
+
+# Copy application code
+COPY cert_sync.py ./
+
+# Create config directory
+RUN mkdir -p /config
+
+# Set default environment variables
+ENV LOG_LEVEL=INFO
+ENV DAYS_BEFORE_EXPIRY=30
+ENV SCHEDULE=02:00
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash certsync
+USER certsync
+
+# Default command
+CMD ["python", "cert_sync.py", "--config", "/config/config.yaml"]

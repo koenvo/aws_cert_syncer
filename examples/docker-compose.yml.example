@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Example nginx service
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Shared certificate volume
+      - ssl-certs:/etc/ssl:ro
+      # Nginx config (you'd provide this)
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - cert-sync
+    restart: unless-stopped
+
+  # Example HAProxy service
+  haproxy:
+    image: haproxy:alpine
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      # Shared certificate volume (different path for HAProxy)
+      - ssl-certs:/opt/haproxy/ssl:ro
+      # HAProxy config (you'd provide this)
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - cert-sync
+    restart: unless-stopped
+
+  # Certificate sync sidecar
+  cert-sync:
+    build: .
+    volumes:
+      # Shared certificate volume (read/write)
+      - ssl-certs:/etc/ssl
+      - ssl-certs:/opt/haproxy/ssl
+      # Configuration
+      - ./config.yaml:/config/config.yaml:ro
+      # AWS credentials (or use IAM roles in production)
+      - ~/.aws:/home/certsync/.aws:ro
+    environment:
+      - LOG_LEVEL=INFO
+      - DAYS_BEFORE_EXPIRY=30
+      - SCHEDULE=02:00  # Daily at 2 AM
+    command: ["python", "cert_sync.py", "--config", "/config/config.yaml", "--daemon"]
+    restart: unless-stopped
+
+volumes:
+  ssl-certs:
+    driver: local

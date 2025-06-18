@@ -1,0 +1,46 @@
+# AWS ACM Certificate Sync Configuration
+
+aws:
+  region: us-east-1
+
+certificates:
+  # Example 1: Certificate with multiple targets
+  - name: example-certificate
+    arn: "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+    
+    targets:
+      - base_dir: "/etc/ssl"
+        server_type: "nginx"
+        passphrase: ""
+        reload_command: "systemctl reload nginx"
+      
+      - base_dir: "/opt/haproxy/ssl"
+        server_type: "haproxy"
+        reload_command: "systemctl reload haproxy"
+  
+  # Example 2: Certificate identified by tags
+  - name: prod-api-server
+    tags:
+      Domain: "api.example.com"
+      Environment: "production"
+      Team: "backend"
+    
+    targets:
+      - base_dir: "/etc/ssl"
+        server_type: "apache"
+        passphrase: "secure123"  # Apache supports encrypted keys
+        reload_command: "systemctl reload apache2"
+  
+  # Example 3: With custom path overrides
+  - name: legacy-app
+    tags:
+      Name: "legacy.company.com"
+    
+    targets:
+      - base_dir: "/opt/app/ssl"
+        server_type: "nginx"
+        # Optional overrides for special cases:
+        cert_path: "/opt/app/ssl/custom-cert.pem"
+        key_path: "/opt/app/ssl/custom-key.pem"
+        passphrase: ""
+        reload_command: "docker restart legacy-app"
